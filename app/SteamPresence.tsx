@@ -50,10 +50,6 @@ type SteamGame = {
   playtime_disconnected?: number;
   rtime_last_played: number;
   playtime_disconnected_forever?: number;
-  playtime_windows_forever?: number;
-  playtime_mac_forever?: number;
-  playtime_linux_forever?: number;
-  playtime_disconnected_forever?: number;
 };
 
 type SteamGamesResponse = {

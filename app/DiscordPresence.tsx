@@ -70,11 +70,13 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
     let heartbeat: number | null = null;
     let heartbeatInterval = 30000;
 
-    function extractPresenceFromPayload(payload: any): LanyardDiscordUser | null {
+    function extractPresenceFromPayload(payload: unknown): LanyardDiscordUser | null {
       // Lanyard can send { d: {...} } or { d: { data: {...} } }
-      const inner = payload?.d ?? payload;
-      const maybe = inner?.data ?? inner;
-      if (maybe && typeof maybe === "object" && maybe.discord_user) return maybe as LanyardDiscordUser;
+      const payloadObj = payload as { d?: unknown };
+      const inner = payloadObj?.d ?? payload;
+      const innerObj = inner as { data?: unknown };
+      const maybe = innerObj?.data ?? inner;
+      if (maybe && typeof maybe === "object" && "discord_user" in maybe) return maybe as LanyardDiscordUser;
       return null;
     }
 
@@ -268,6 +270,16 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
               />
               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
                 nonononono
+              </div>
+            </div>
+            <div className="relative group">
+              <img
+                src="/1-237fdf5a7336cc9619b248dabd856ef696e56e78.gif"
+                alt="Eevee Badge"
+                className="w-4 h-4 rounded-sm"
+              />
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                eevee
               </div>
             </div>
           </div>
