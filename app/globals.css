@@ -24,3 +24,27 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Animated blue outline rotating around profile box */
+@keyframes blueOutline {
+  0% {
+    border-color: #3b82f6;
+    box-shadow: 0 0 10px #3b82f6;
+  }
+  25% {
+    border-color: #1d4ed8;
+    box-shadow: 0 0 15px #1d4ed8;
+  }
+  50% {
+    border-color: #1e40af;
+    box-shadow: 0 0 20px #1e40af;
+  }
+  75% {
+    border-color: #1e3a8a;
+    box-shadow: 0 0 15px #1e3a8a;
+  }
+  100% {
+    border-color: #3b82f6;
+    box-shadow: 0 0 10px #3b82f6;
+  }
+}

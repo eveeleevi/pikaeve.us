@@ -103,16 +103,7 @@ export default function BackgroundVideo({ src = "/background.mp4", poster = "", 
         />
       </div>
       {audioSrc ? (
-        <div className="fixed bottom-4 right-4 z-50">
-          <audio ref={audioRef} src={audioSrc} preload="auto" loop />
-          <button
-            type="button"
-            onClick={togglePlayback}
-            className="rounded-full border border-black/[.08] dark:border-white/[.145] bg-white/70 dark:bg-black/40 backdrop-blur px-3 py-1 text-xs"
-          >
-            {isPlaying ? "Pause" : "Play"}
-          </button>
-        </div>
+        <audio ref={audioRef} src={audioSrc} preload="auto" loop />
       ) : null}
     </>
   );

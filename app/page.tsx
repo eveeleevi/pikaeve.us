@@ -3,11 +3,13 @@
 import Image from "next/image";
 import DiscordPresence from "./DiscordPresence";
 import SteamPresence from "./SteamPresence";
-import { FaTimes, FaGlobe } from "react-icons/fa";
-import { useState, useEffect } from "react";
+import { FaTimes, FaGlobe, FaPlay, FaPause, FaVolumeUp, FaMusic } from "react-icons/fa";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export default function Home() {
   const [showDiscordPanel, setShowDiscordPanel] = useState(false);
+  const [showAudioPanel, setShowAudioPanel] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
   const [discordData, setDiscordData] = useState<{
@@ -17,6 +19,51 @@ export default function Home() {
     status: string;
     avatar: string | null;
   } | null>(null);
+  
+  // Audio control state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.5);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [visualizerBars, setVisualizerBars] = useState<number[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Get reference to background audio element
+  useEffect(() => {
+    const getBackgroundAudio = () => {
+      const audio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
+      if (audio) {
+        audioRef.current = audio;
+        // Set initial volume
+        audio.volume = volume;
+        // Set up event listeners
+        audio.addEventListener('timeupdate', handleTimeUpdate);
+        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.addEventListener('play', () => setIsPlaying(true));
+        audio.addEventListener('pause', () => setIsPlaying(false));
+      }
+    };
+
+    // Try to get audio element after a short delay to ensure it's loaded
+    const timer = setTimeout(getBackgroundAudio, 100);
+    return () => clearTimeout(timer);
+  }, [volume]);
+
+  // Real audio visualizer - automatically enabled when audio panel is open
+  useEffect(() => {
+    if (!showAudioPanel) return;
+
+    // For now, use random bars to avoid audio context issues
+    const interval = setInterval(() => {
+      const bars = Array.from({ length: 32 }, () => Math.random() * 80 + 20);
+      setVisualizerBars(bars);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [showAudioPanel]);
 
   // Handle mouse movement
   useEffect(() => {
@@ -28,11 +75,22 @@ export default function Home() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Handle ESC key to close panel
+  // Handle ESC key to close panel and click outside to close audio panel
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && showDiscordPanel) {
         setShowDiscordPanel(false);
+      }
+      if (event.key === 'Escape' && showAudioPanel) {
+        setShowAudioPanel(false);
+      }
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      // Close audio panel if clicking outside of it and the music button
+      if (showAudioPanel && !target.closest('[data-audio-panel]') && !target.closest('[data-music-button]')) {
+        setShowAudioPanel(false);
       }
     };
 
@@ -42,24 +100,98 @@ export default function Home() {
       document.body.style.overflow = 'hidden';
     }
 
+    if (showAudioPanel) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside);
       document.body.style.overflow = 'unset';
     };
-  }, [showDiscordPanel]);
+  }, [showDiscordPanel, showAudioPanel]);
+
+  // Sync with background audio
+  useEffect(() => {
+    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
+    if (backgroundAudio) {
+      const handlePlay = () => setIsPlaying(true);
+      const handlePause = () => setIsPlaying(false);
+      const handleTimeUpdate = () => setCurrentTime(backgroundAudio.currentTime);
+      const handleLoadedMetadata = () => setDuration(backgroundAudio.duration);
+      
+      backgroundAudio.addEventListener('play', handlePlay);
+      backgroundAudio.addEventListener('pause', handlePause);
+      backgroundAudio.addEventListener('timeupdate', handleTimeUpdate);
+      backgroundAudio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      
+      return () => {
+        backgroundAudio.removeEventListener('play', handlePlay);
+        backgroundAudio.removeEventListener('pause', handlePause);
+        backgroundAudio.removeEventListener('timeupdate', handleTimeUpdate);
+        backgroundAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+    }
+  }, []);
+
+  // Audio control functions - control background audio
+  const togglePlayPause = () => {
+    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
+    if (backgroundAudio) {
+      if (isPlaying) {
+        backgroundAudio.pause();
+      } else {
+        backgroundAudio.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
+    if (backgroundAudio) {
+      backgroundAudio.volume = newVolume;
+    }
+  };
+
+  const handleTimeUpdate = useCallback(() => {
+    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
+    if (backgroundAudio) {
+      setCurrentTime(backgroundAudio.currentTime);
+    }
+  }, []);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
+    if (backgroundAudio) {
+      setDuration(backgroundAudio.duration);
+    }
+  }, []);
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative">
       <div className="flex items-center gap-6 relative flex-row">
         <main className="w-full max-w-[3800px] flex justify-center">
           <div 
-            className="w-full max-w-[2000px] rounded-2xl border-2 border-white p-8 bg-white dark:bg-black/20 backdrop-blur transition-transform duration-300 ease-out"
+            className="w-full max-w-[2000px] rounded-2xl p-8 transition-transform duration-300 ease-out relative backdrop-blur-md"
             onMouseEnter={() => setIsHovering(true)}
             onMouseLeave={() => setIsHovering(false)}
             style={{
-              transform: isHovering ? `translate(${typeof window !== 'undefined' ? Math.min(Math.max((mousePosition.x - window.innerWidth / 2) * 0.02, -20), 20) : 0}px, ${typeof window !== 'undefined' ? Math.min(Math.max((mousePosition.y - window.innerHeight / 2) * 0.02, -20), 20) : 0}px)` : 'translate(0px, 0px)'
+              transform: isHovering ? `translate(${typeof window !== 'undefined' ? Math.min(Math.max((mousePosition.x - window.innerWidth / 2) * 0.02, -20), 20) : 0}px, ${typeof window !== 'undefined' ? Math.min(Math.max((mousePosition.y - window.innerHeight / 2) * 0.02, -20), 20) : 0}px)` : 'translate(0px, 0px)',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '3px solid #3b82f6',
+              animation: 'blueOutline 3s linear infinite'
             }}
           >
-            <div className="flex items-center gap-12 mb-6 flex-row justify-between">
+            <div className="relative z-10 flex items-center gap-12 mb-6 flex-row justify-between">
               <div className="flex-1">
                 {/* Integrated Discord Presence */}
                 <div className="opacity-60 hover:opacity-100 transition-opacity duration-200">
@@ -93,17 +225,85 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <a href="https://pikaeve.net" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg border border-black/[.08] dark:border-white/[.145] p-4 hover:bg-[#f8f8f8] dark:hover:bg-[#111] transition-colors">
-                <FaGlobe />
-                <div className="flex flex-col">
-                  <span className="font-semibold">Website</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">pikaeve.net</span>
+            {/* Website section removed */}
+          </div>
+
+        </main>
+
+        {/* Music Note Toggle Button - Top Right */}
+        <button
+          data-music-button
+          onClick={() => setShowAudioPanel(!showAudioPanel)}
+          className="fixed top-4 right-4 w-12 h-12 rounded-full border-2 border-white bg-white dark:bg-black/20 backdrop-blur flex items-center justify-center hover:bg-gray-100 dark:hover:bg-black/40 transition-colors duration-200 z-50"
+        >
+          <FaMusic className="text-gray-600 dark:text-gray-300 text-lg" />
+        </button>
+
+        {/* Audio Control Panel - Slides down from top right */}
+        <div 
+          data-audio-panel
+          className={`fixed top-16 right-4 w-64 rounded-lg border-2 border-white bg-white dark:bg-black/20 backdrop-blur z-50 transition-all duration-300 ease-in-out ${
+            showAudioPanel 
+              ? 'opacity-100 translate-y-0 pointer-events-auto' 
+              : 'opacity-0 -translate-y-4 pointer-events-none'
+          }`}>
+          <div className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <FaVolumeUp className="text-gray-600 dark:text-gray-300" />
+              <h3 className="text-xs font-semibold text-gray-800 dark:text-gray-200">Audio Controls</h3>
+            </div>
+            
+            <div className="space-y-3">
+              {/* Time Display */}
+              <div className="text-xs text-gray-600 dark:text-gray-300 text-center">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </div>
+              
+              {/* Volume Slider */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600 dark:text-gray-300">Volume</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-300">
+                    {Math.round(volume * 100)}%
+                  </span>
                 </div>
-              </a>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                  style={{
+                    background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${volume * 100}%, #e5e7eb ${volume * 100}%, #e5e7eb 100%)`
+                  }}
+                />
+              </div>
             </div>
           </div>
-        </main>
+        </div>
+
+        {/* Visualizer - Next to Audio Panel */}
+        <div className={`fixed top-16 right-72 w-48 h-32 rounded-lg border-2 border-white bg-black/30 backdrop-blur z-50 transition-all duration-500 ease-in-out ${
+          showAudioPanel
+            ? 'opacity-100 translate-y-0 pointer-events-auto' 
+            : 'opacity-0 -translate-y-4 pointer-events-none'
+        }`}>
+          <div className="p-3 h-full flex items-end justify-center gap-1">
+            {visualizerBars.map((height, index) => (
+              <div
+                key={index}
+                className="bg-gradient-to-t from-purple-500 to-pink-500 rounded-sm transition-all duration-100 ease-out"
+                style={{
+                  width: '4px',
+                  height: `${height}%`,
+                  minHeight: '2px'
+                }}
+              />
+            ))}
+          </div>
+        </div>
 
         {/* Discord Profile Panel - pops out of background layer */}
         {showDiscordPanel && (
