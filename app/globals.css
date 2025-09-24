@@ -25,26 +25,26 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Animated blue outline rotating around profile box */
-@keyframes blueOutline {
+/* Profile box animations */
+@keyframes gradientShift {
   0% {
-    border-color: #3b82f6;
-    box-shadow: 0 0 10px #3b82f6;
-  }
-  25% {
-    border-color: #1d4ed8;
-    box-shadow: 0 0 15px #1d4ed8;
+    background-position: 0% 50%;
   }
   50% {
-    border-color: #1e40af;
-    box-shadow: 0 0 20px #1e40af;
-  }
-  75% {
-    border-color: #1e3a8a;
-    box-shadow: 0 0 15px #1e3a8a;
+    background-position: 100% 50%;
   }
   100% {
-    border-color: #3b82f6;
-    box-shadow: 0 0 10px #3b82f6;
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
   }
 }

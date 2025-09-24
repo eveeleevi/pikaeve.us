@@ -3,15 +3,25 @@
 import Image from "next/image";
 import DiscordPresence from "./DiscordPresence";
 import SteamPresence from "./SteamPresence";
-import { FaTimes, FaGlobe, FaPlay, FaPause, FaVolumeUp, FaMusic } from "react-icons/fa";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { FaTimes, FaGlobe, FaEye, FaCog, FaPalette, FaLink, FaUser } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { useImageConfig, ImageConfigPanel } from "./ImageConfig";
+import { useColorConfig, ColorConfigPanel } from "./ColorConfig";
+import { useLinksConfig, LinksConfigPanel, CustomLink } from "./LinksConfig";
+import { useProfileConfig, ProfileConfigPanel } from "./ProfileConfig";
 
 export default function Home() {
   const [showDiscordPanel, setShowDiscordPanel] = useState(false);
-  const [showAudioPanel, setShowAudioPanel] = useState(false);
-  const [showVisualizer, setShowVisualizer] = useState(false);
+  const [showImageConfig, setShowImageConfig] = useState(false);
+  const [showColorConfig, setShowColorConfig] = useState(false);
+  const [showLinksConfig, setShowLinksConfig] = useState(false);
+  const [showProfileConfig, setShowProfileConfig] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [views, setViews] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
+  const [isMouseMoving, setIsMouseMoving] = useState(false);
+  const [hasPlayedHoverSound, setHasPlayedHoverSound] = useState(false);
   const [discordData, setDiscordData] = useState<{
     banner: string | null;
     bio: string | null;
@@ -20,178 +30,105 @@ export default function Home() {
     avatar: string | null;
   } | null>(null);
   
-  // Audio control state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.5);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [visualizerBars, setVisualizerBars] = useState<number[]>([]);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const { config: imageConfig } = useImageConfig();
+  const { config: colorConfig } = useColorConfig();
+  const { config: linksConfig } = useLinksConfig();
+  const { config: profileConfig } = useProfileConfig();
+  const [isLocalhost, setIsLocalhost] = useState(false);
 
-  // Get reference to background audio element
+  // Check if running on localhost
   useEffect(() => {
-    const getBackgroundAudio = () => {
-      const audio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
-      if (audio) {
-        audioRef.current = audio;
-        // Set initial volume
-        audio.volume = volume;
-        // Set up event listeners
-        audio.addEventListener('timeupdate', handleTimeUpdate);
-        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.addEventListener('play', () => setIsPlaying(true));
-        audio.addEventListener('pause', () => setIsPlaying(false));
-      }
-    };
-
-    // Try to get audio element after a short delay to ensure it's loaded
-    const timer = setTimeout(getBackgroundAudio, 100);
-    return () => clearTimeout(timer);
-  }, [volume]);
-
-  // Real audio visualizer - automatically enabled when audio panel is open
-  useEffect(() => {
-    if (!showAudioPanel) return;
-
-    // For now, use random bars to avoid audio context issues
-    const interval = setInterval(() => {
-      const bars = Array.from({ length: 32 }, () => Math.random() * 80 + 20);
-      setVisualizerBars(bars);
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [showAudioPanel]);
+    setIsLocalhost(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  }, []);
 
   // Handle mouse movement
   useEffect(() => {
+    let mouseMoveTimeout: NodeJS.Timeout;
+
     const handleMouseMove = (event: MouseEvent) => {
       setMousePosition({ x: event.clientX, y: event.clientY });
+      setIsMouseMoving(true);
+      
+      // Clear existing timeout
+      clearTimeout(mouseMoveTimeout);
+      
+      // Set timeout to stop motion blur after mouse stops moving
+      mouseMoveTimeout = setTimeout(() => {
+        setIsMouseMoving(false);
+      }, 200); // 200ms delay after mouse stops moving
     };
 
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      clearTimeout(mouseMoveTimeout);
+    };
   }, []);
 
-  // Handle ESC key to close panel and click outside to close audio panel
+  // Handle ESC key to close panels
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && showDiscordPanel) {
-        setShowDiscordPanel(false);
-      }
-      if (event.key === 'Escape' && showAudioPanel) {
-        setShowAudioPanel(false);
-      }
-    };
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      // Close audio panel if clicking outside of it and the music button
-      if (showAudioPanel && !target.closest('[data-audio-panel]') && !target.closest('[data-music-button]')) {
-        setShowAudioPanel(false);
+      if (event.key === 'Escape') {
+        if (showDiscordPanel) setShowDiscordPanel(false);
+        if (showImageConfig) setShowImageConfig(false);
+        if (showColorConfig) setShowColorConfig(false);
+        if (showLinksConfig) setShowLinksConfig(false);
+        if (showSettingsMenu) setShowSettingsMenu(false);
       }
     };
 
-    if (showDiscordPanel) {
+    const isAnyPanelOpen = showDiscordPanel || showImageConfig || showColorConfig || showLinksConfig;
+    
+    if (isAnyPanelOpen) {
       document.addEventListener('keydown', handleKeyDown);
       // Prevent body scroll when panel is open
       document.body.style.overflow = 'hidden';
     }
 
-    if (showAudioPanel) {
-      document.addEventListener('click', handleClickOutside);
-    }
-
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('click', handleClickOutside);
       document.body.style.overflow = 'unset';
     };
-  }, [showDiscordPanel, showAudioPanel]);
+  }, [showDiscordPanel, showImageConfig, showColorConfig, showLinksConfig]);
 
-  // Sync with background audio
+  // View counter logic
   useEffect(() => {
-    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
-    if (backgroundAudio) {
-      const handlePlay = () => setIsPlaying(true);
-      const handlePause = () => setIsPlaying(false);
-      const handleTimeUpdate = () => setCurrentTime(backgroundAudio.currentTime);
-      const handleLoadedMetadata = () => setDuration(backgroundAudio.duration);
-      
-      backgroundAudio.addEventListener('play', handlePlay);
-      backgroundAudio.addEventListener('pause', handlePause);
-      backgroundAudio.addEventListener('timeupdate', handleTimeUpdate);
-      backgroundAudio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      
-      return () => {
-        backgroundAudio.removeEventListener('play', handlePlay);
-        backgroundAudio.removeEventListener('pause', handlePause);
-        backgroundAudio.removeEventListener('timeupdate', handleTimeUpdate);
-        backgroundAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      };
+    const hasVisited = localStorage.getItem('hasVisited');
+    if (!hasVisited) {
+      // First visit
+      const visitorId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('visitorId', visitorId);
+      localStorage.setItem('hasVisited', 'true');
+      setViews(1);
+    } else {
+      // Returning visitor
+      const storedViews = localStorage.getItem('views');
+      const currentViews = storedViews ? parseInt(storedViews) + 1 : 1;
+      localStorage.setItem('views', currentViews.toString());
+      setViews(currentViews);
     }
   }, []);
-
-  // Audio control functions - control background audio
-  const togglePlayPause = () => {
-    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
-    if (backgroundAudio) {
-      if (isPlaying) {
-        backgroundAudio.pause();
-      } else {
-        backgroundAudio.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value);
-    setVolume(newVolume);
-    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
-    if (backgroundAudio) {
-      backgroundAudio.volume = newVolume;
-    }
-  };
-
-  const handleTimeUpdate = useCallback(() => {
-    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
-    if (backgroundAudio) {
-      setCurrentTime(backgroundAudio.currentTime);
-    }
-  }, []);
-
-  const handleLoadedMetadata = useCallback(() => {
-    const backgroundAudio = document.querySelector('audio[src*="ssvid.net--MIDWXST-SIDELINES-A-SILENT-VOICE-4K-AMV_128kbps.m4a.mp3"]') as HTMLAudioElement;
-    if (backgroundAudio) {
-      setDuration(backgroundAudio.duration);
-    }
-  }, []);
-
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative">
       <div className="flex items-center gap-6 relative flex-row">
         <main className="w-full max-w-[3800px] flex justify-center">
           <div 
-            className="w-full max-w-[2000px] rounded-2xl p-8 transition-transform duration-300 ease-out relative backdrop-blur-md"
+            className="w-full max-w-[2000px] rounded-2xl border-2 border-white p-8 bg-white dark:bg-black/20 backdrop-blur transition-transform duration-300 ease-out"
             onMouseEnter={() => setIsHovering(true)}
             onMouseLeave={() => setIsHovering(false)}
             style={{
               transform: isHovering ? `translate(${typeof window !== 'undefined' ? Math.min(Math.max((mousePosition.x - window.innerWidth / 2) * 0.02, -20), 20) : 0}px, ${typeof window !== 'undefined' ? Math.min(Math.max((mousePosition.y - window.innerHeight / 2) * 0.02, -20), 20) : 0}px)` : 'translate(0px, 0px)',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '3px solid #3b82f6',
-              animation: 'blueOutline 3s linear infinite'
+              filter: profileConfig.motionBlurEnabled && isMouseMoving && (!profileConfig.motionBlurOnHoverOnly || isHovering) ? 
+                `blur(${profileConfig.motionBlurIntensity / 100}px)` : 'blur(0px)',
+              boxShadow: colorConfig.hoverEffectsEnabled && isHovering ? 
+                `0 0 20px ${colorConfig.hoverGlowColor}40, 0 0 40px ${colorConfig.hoverGlowColor}20` : 
+                `0 0 10px ${colorConfig.normalGlowColor}20`,
+              borderColor: colorConfig.hoverEffectsEnabled && isHovering ? 
+                `${colorConfig.hoverBorderColor}80` : 
+                colorConfig.normalOutlineColor
             }}
           >
-            <div className="relative z-10 flex items-center gap-12 mb-6 flex-row justify-between">
+            <div className="flex items-center gap-12 mb-6 flex-row justify-between">
               <div className="flex-1">
                 {/* Integrated Discord Presence */}
                 <div className="opacity-60 hover:opacity-100 transition-opacity duration-200">
@@ -206,18 +143,102 @@ export default function Home() {
                   <SteamPresence onUsernameClick={() => {}} />
                 </div>
               </div>
-              <div className="flex flex-col items-center">
-                <h1 className="text-2xl font-bold mb-1">
+              <div className="flex flex-col items-center relative">
+                <h1 
+                  className="text-2xl font-bold mb-1"
+                  style={{ color: colorConfig.profileText }}
+                >
                   eveeleevi
                 </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">awesome?</p>
-                <Image src="/file_5c7edfd8-ac93-469d-b873-5bb727b0f322.png" alt="Avatar" width={100} height={100} className="rounded-full" />
+                <p 
+                  className="text-sm mb-4"
+                  style={{ color: colorConfig.bioText }}
+                >
+                  awesome?
+                </p>
+                <div className="relative">
+                  <Image 
+                    src={imageConfig.avatar} 
+                    alt="Avatar" 
+                    width={100} 
+                    height={100} 
+                    className="rounded-full" 
+                  />
+                  
+                  {/* Views Counter Overlay */}
+                  <div 
+                    className="absolute -bottom-2 -right-2 bg-black/80 backdrop-blur-sm rounded-full px-2 py-1 flex items-center gap-1 shadow-lg"
+                    style={{ color: colorConfig.viewsText }}
+                  >
+                    <FaEye className="w-3 h-3" style={{ color: colorConfig.viewsIcon }} />
+                    <span className="text-xs font-bold">{views.toLocaleString()}</span>
+                  </div>
+                  
+                  {/* Mini icons around PFP */}
+                  {linksConfig.links.filter(link => link.displayMode === 'mini-icons' || link.displayMode === 'both').slice(0, 8).map((link, index) => {
+                    // Position icons around PFP, but create a gap where views counter is (bottom-right)
+                    const miniIconLinks = linksConfig.links.filter(link => link.displayMode === 'mini-icons' || link.displayMode === 'both');
+                    const totalLinks = Math.min(miniIconLinks.length, 8);
+                    const radius = 55;
+                    const linkImage = imageConfig.customLinkImages[link.id];
+                    
+                    // Create a gap in the bottom-right area (around 315 degrees) for views counter
+                    // Distribute icons in a circle but skip the bottom-right quadrant
+                    const gapStart = 300; // Start of gap (bottom-right area)
+                    const gapEnd = 360; // End of gap
+                    const availableAngle = 360 - (gapEnd - gapStart); // Total available angle
+                    
+                    // Calculate angle, but if it would be in the gap, move it to after the gap
+                    let angle = (index * availableAngle) / totalLinks;
+                    if (angle >= gapStart) {
+                        angle = angle + (gapEnd - gapStart); // Move past the gap
+                    }
+                    
+                    // Rotate the entire distribution so the gap is at bottom-right (315 degrees)
+                    // Add 90 degrees to shift the gap further down to bottom-right
+                    angle = angle + 90;
+                    
+                    const x = Math.cos((angle * Math.PI) / 180) * radius;
+                    const y = Math.sin((angle * Math.PI) / 180) * radius;
+                    
+                    return (
+                      <a
+                        key={link.id}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg hover:scale-110 transition-transform duration-200 overflow-hidden z-10"
+                        style={{
+                          backgroundColor: link.color,
+                          left: `calc(50% + ${x}px - 16px)`,
+                          top: `calc(50% + ${y}px - 16px)`,
+                        }}
+                        title={link.name}
+                      >
+                        {linkImage ? (
+                          <img 
+                            src={linkImage} 
+                            alt={link.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          link.icon || '🔗'
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
               </div>
               <div className="text-right">
-                <h2 className="text-xl font-semibold">Additional Info</h2>
+                <h2 
+                  className="text-xl font-semibold"
+                  style={{ color: colorConfig.websiteText }}
+                >
+                  Additional Info
+                </h2>
                 <div className="mt-2">
                   <img 
-                    src="/e3cd095e4c6c4b3dddd1efe49a0891d8.jpg" 
+                    src={imageConfig.additionalInfoImage} 
                     alt="Additional info image" 
                     className="w-32 h-32 rounded-lg object-cover"
                   />
@@ -225,85 +246,86 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Website section removed */}
-          </div>
-
-        </main>
-
-        {/* Music Note Toggle Button - Top Right */}
-        <button
-          data-music-button
-          onClick={() => setShowAudioPanel(!showAudioPanel)}
-          className="fixed top-4 right-4 w-12 h-12 rounded-full border-2 border-white bg-white dark:bg-black/20 backdrop-blur flex items-center justify-center hover:bg-gray-100 dark:hover:bg-black/40 transition-colors duration-200 z-50"
-        >
-          <FaMusic className="text-gray-600 dark:text-gray-300 text-lg" />
-        </button>
-
-        {/* Audio Control Panel - Slides down from top right */}
-        <div 
-          data-audio-panel
-          className={`fixed top-16 right-4 w-64 rounded-lg border-2 border-white bg-white dark:bg-black/20 backdrop-blur z-50 transition-all duration-300 ease-in-out ${
-            showAudioPanel 
-              ? 'opacity-100 translate-y-0 pointer-events-auto' 
-              : 'opacity-0 -translate-y-4 pointer-events-none'
-          }`}>
-          <div className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <FaVolumeUp className="text-gray-600 dark:text-gray-300" />
-              <h3 className="text-xs font-semibold text-gray-800 dark:text-gray-200">Audio Controls</h3>
-            </div>
-            
-            <div className="space-y-3">
-              {/* Time Display */}
-              <div className="text-xs text-gray-600 dark:text-gray-300 text-center">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </div>
-              
-              {/* Volume Slider */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600 dark:text-gray-300">Volume</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">
-                    {Math.round(volume * 100)}%
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Default Website Link */}
+              <a 
+                href="https://pikaeve.us" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-3 rounded-lg border border-black/[.08] dark:border-white/[.145] p-4 hover:bg-[#f8f8f8] dark:hover:bg-[#111] transition-colors"
+              >
+                <FaGlobe style={{ color: colorConfig.websiteIcon }} />
+                <div className="flex flex-col">
+                  <span 
+                    className="font-semibold"
+                    style={{ color: colorConfig.websiteText }}
+                  >
+                    Website
+                  </span>
+                  <span 
+                    className="text-xs"
+                    style={{ color: colorConfig.websiteText }}
+                  >
+                    pikaeve.us
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                  style={{
-                    background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${volume * 100}%, #e5e7eb ${volume * 100}%, #e5e7eb 100%)`
-                  }}
-                />
-              </div>
+              </a>
+
+              {/* Custom Links - Box Mode */}
+              {linksConfig.links.filter(link => link.displayMode === 'box' || link.displayMode === 'both').map((link) => {
+                const linkImage = imageConfig.customLinkImages[link.id];
+                
+                return (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg border border-black/[.08] dark:border-white/[.145] p-4 hover:bg-[#f8f8f8] dark:hover:bg-[#111] transition-colors"
+                  >
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      {linkImage ? (
+                        <img 
+                          src={linkImage} 
+                          alt={link.name}
+                          className="w-full h-full object-cover rounded"
+                        />
+                      ) : (
+                        <span 
+                          className="text-lg"
+                          style={{ color: link.color }}
+                        >
+                          {link.icon || '🔗'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span 
+                        className="font-semibold"
+                        style={{ color: link.color }}
+                      >
+                        {link.name}
+                      </span>
+                      <span 
+                        className="text-xs"
+                        style={{ color: colorConfig.websiteText }}
+                      >
+                        {(() => {
+                          try {
+                            return new URL(link.url).hostname;
+                          } catch (error) {
+                            return link.url; // Fallback to original URL if invalid
+                          }
+                        })()}
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
+
             </div>
           </div>
-        </div>
-
-        {/* Visualizer - Next to Audio Panel */}
-        <div className={`fixed top-16 right-72 w-48 h-32 rounded-lg border-2 border-white bg-black/30 backdrop-blur z-50 transition-all duration-500 ease-in-out ${
-          showAudioPanel
-            ? 'opacity-100 translate-y-0 pointer-events-auto' 
-            : 'opacity-0 -translate-y-4 pointer-events-none'
-        }`}>
-          <div className="p-3 h-full flex items-end justify-center gap-1">
-            {visualizerBars.map((height, index) => (
-              <div
-                key={index}
-                className="bg-gradient-to-t from-purple-500 to-pink-500 rounded-sm transition-all duration-100 ease-out"
-                style={{
-                  width: '4px',
-                  height: `${height}%`,
-                  minHeight: '2px'
-                }}
-              />
-            ))}
-          </div>
-        </div>
+        </main>
 
         {/* Discord Profile Panel - pops out of background layer */}
         {showDiscordPanel && (
@@ -321,7 +343,7 @@ export default function Home() {
             <div
               className="h-24 bg-cover bg-center bg-no-repeat relative rounded-t-2xl"
               style={{
-                backgroundImage: 'url("/we-have-no-sappers-dog-accepting-fate.gif")',
+                backgroundImage: `url("${imageConfig.discordBanner}")`,
               }}
             >
               {/* Gradient overlay */}
@@ -428,6 +450,120 @@ export default function Home() {
             </div>
           </div>
           </>
+        )}
+
+        {/* Settings Panels */}
+        <ImageConfigPanel 
+          isOpen={showImageConfig} 
+          onClose={() => setShowImageConfig(false)} 
+        />
+        
+        <ColorConfigPanel 
+          isOpen={showColorConfig} 
+          onClose={() => setShowColorConfig(false)} 
+        />
+        
+        <LinksConfigPanel 
+          isOpen={showLinksConfig} 
+          onClose={() => setShowLinksConfig(false)} 
+        />
+        
+        <ProfileConfigPanel 
+          isOpen={showProfileConfig} 
+          onClose={() => setShowProfileConfig(false)} 
+        />
+
+        {/* Floating Settings Button with Popup Menu - Bottom Right (Localhost Only) */}
+        {isLocalhost && (
+          <div className="fixed bottom-6 right-6 z-40" data-settings-menu>
+            {/* Settings Popup Menu */}
+            {showSettingsMenu && (
+              <div className="absolute bottom-16 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[200px] animate-in slide-in-from-bottom-2 duration-200">
+                <button
+                  onClick={() => {
+                    setShowImageConfig(true);
+                    setShowSettingsMenu(false);
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                >
+                  <FaCog className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">Image Settings</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Change images & media</div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowColorConfig(true);
+                    setShowSettingsMenu(false);
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                >
+                  <FaPalette className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">Color Settings</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Customize colors</div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowLinksConfig(true);
+                    setShowSettingsMenu(false);
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                >
+                  <FaLink className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">Links Settings</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Manage custom links</div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowProfileConfig(true);
+                    setShowSettingsMenu(false);
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                >
+                  <FaUser className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">Profile Settings</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Motion blur & effects</div>
+                  </div>
+                </button>
+                
+                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                <button
+                  onClick={() => {
+                    // Reset views for testing
+                    localStorage.removeItem('hasVisited');
+                    localStorage.removeItem('visitorId');
+                    localStorage.removeItem('views');
+                    window.location.reload();
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                >
+                  <FaEye className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">Reset Views</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Reset view counter</div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* Main Settings Button */}
+            <button
+              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+              className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 group"
+              title="Settings"
+            >
+              <FaCog className={`w-5 h-5 transition-transform duration-300 ${showSettingsMenu ? 'rotate-180' : 'group-hover:rotate-90'}`} />
+            </button>
+          </div>
         )}
 
       </div>

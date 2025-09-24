@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useImageConfig } from "./ImageConfig";
 
 type BackgroundVideoProps = {
   src?: string;
@@ -10,7 +11,11 @@ type BackgroundVideoProps = {
   canPlay?: boolean; // gate autoplay until allowed
 };
 
-export default function BackgroundVideo({ src = "/background.mp4", poster = "", opacity = 0.35, audioSrc, canPlay = true }: BackgroundVideoProps) {
+export default function BackgroundVideo({ src, poster = "", opacity = 0.35, audioSrc, canPlay = true }: BackgroundVideoProps) {
+  const { config } = useImageConfig();
+  const videoSrc = src || config.backgroundVideo;
+  const audioSrcFinal = audioSrc || config.backgroundAudio;
+  
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
@@ -79,7 +84,7 @@ export default function BackgroundVideo({ src = "/background.mp4", poster = "", 
       cleanedUp = true;
       cleanupInteractionListeners();
     };
-  }, [audioSrc, canPlay]);
+  }, [audioSrcFinal, canPlay]);
   return (
     <>
       <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -91,7 +96,7 @@ export default function BackgroundVideo({ src = "/background.mp4", poster = "", 
           playsInline
           poster={poster || undefined}
         >
-          <source src={src} type="video/mp4" />
+          <source src={videoSrc} type="video/mp4" />
         </video>
         <div
           className="absolute inset-0"
@@ -102,8 +107,8 @@ export default function BackgroundVideo({ src = "/background.mp4", poster = "", 
           }}
         />
       </div>
-      {audioSrc ? (
-        <audio ref={audioRef} src={audioSrc} preload="auto" loop />
+      {audioSrcFinal ? (
+        <audio ref={audioRef} src={audioSrcFinal} preload="auto" loop />
       ) : null}
     </>
   );

@@ -2,6 +2,8 @@
 
 import React from "react";
 import { FaSteam, FaGamepad, FaClock, FaTrophy } from "react-icons/fa";
+import { useImageConfig } from "./ImageConfig";
+import { useColorConfig } from "./ColorConfig";
 
 type SteamUser = {
   steamid: string;
@@ -115,6 +117,8 @@ function formatPlaytime(minutes: number): string {
 }
 
 export default function SteamPresence({ onUsernameClick }: SteamPresenceProps) {
+  const { config } = useImageConfig();
+  const { colorConfig } = useColorConfig();
   const [steamUser, setSteamUser] = React.useState<SteamUser | null>(null);
   const [recentGames, setRecentGames] = React.useState<SteamGame[]>([]);
   const [friendsCount, setFriendsCount] = React.useState<number>(0);
@@ -266,7 +270,7 @@ export default function SteamPresence({ onUsernameClick }: SteamPresenceProps) {
       <div className="flex items-center gap-2">
         <div className="relative">
           <img
-            src={steamUser.avatarfull}
+            src={config.steamPfp}
             alt="Steam avatar"
             className="w-8 h-8 rounded-full object-cover"
             onError={(e) => {
@@ -287,6 +291,7 @@ export default function SteamPresence({ onUsernameClick }: SteamPresenceProps) {
             target="_blank" 
             rel="noopener noreferrer"
             className="font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            style={{ color: `${colorConfig?.steamUserText || '#000000'} !important` }}
           >
             {steamUser.personaname}
           </a>

@@ -2,6 +2,8 @@
 
 import React from "react";
 import { FaTimes } from "react-icons/fa";
+import { useImageConfig } from "./ImageConfig";
+import { useColorConfig } from "./ColorConfig";
 
 type LanyardDiscordUser = {
   discord_user: {
@@ -62,6 +64,8 @@ interface DiscordPresenceProps {
 
 export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProps) {
   const [presence, setPresence] = React.useState<LanyardDiscordUser | null>(null);
+  const { config } = useImageConfig();
+  const { colorConfig } = useColorConfig();
   const [connected, setConnected] = React.useState(false);
   const [trackingError, setTrackingError] = React.useState<string | null>(null);
 
@@ -225,6 +229,7 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
         <div className="flex items-center gap-1">
           <div 
             className="text-sm font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            style={{ color: colorConfig?.discordUserText || '#000000' }}
             onClick={() => {
               if (onUsernameClick && presence) {
                 const bannerUrl = getCdnBannerUrl(presence.discord_user.id, presence.discord_user.banner);
@@ -244,7 +249,7 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
           <div className="flex items-center gap-1 ml-1">
             <div className="relative group">
               <img
-                src="/image copy.png"
+                src={config.peakMusicBadge}
                 alt="Badge 1"
                 className="w-4 h-4 rounded-sm"
               />
@@ -254,7 +259,7 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
             </div>
             <div className="relative group">
               <img
-                src="/image.png"
+                src={config.notoriousBadge}
                 alt="Badge 2"
                 className="w-4 h-4 rounded-sm"
               />
@@ -264,7 +269,7 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
             </div>
             <div className="relative group">
               <img
-                src="/touhou-cirnasdo.gif"
+                src={config.touhouBadge}
                 alt="Touhou Cirno"
                 className="w-4 h-4 rounded-sm"
               />
@@ -297,16 +302,16 @@ export default function DiscordPresence({ onUsernameClick }: DiscordPresenceProp
             </a>
           </div>
         ) : spotify ? (
-          <div className="text-xs text-gray-600 dark:text-gray-300">
+          <div className="text-xs" style={{ color: colorConfig?.discordBioText || '#6b7280' }}>
             <div>♪ {spotify.song} — {spotify.artist}</div>
           </div>
         ) : playingActivity ? (
-          <div className="text-xs text-gray-600 dark:text-gray-300">
+          <div className="text-xs" style={{ color: colorConfig?.discordBioText || '#6b7280' }}>
             🎮 {playingActivity.name}
             {playingActivity.details && ` — ${playingActivity.details}`}
           </div>
         ) : (
-          <div className="text-xs text-gray-600 dark:text-gray-300 capitalize">{status}</div>
+          <div className="text-xs capitalize" style={{ color: colorConfig?.discordBioText || '#6b7280' }}>{status}</div>
         )}
       </div>
     </div>
